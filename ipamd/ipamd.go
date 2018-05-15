@@ -264,6 +264,9 @@ func (c *IPAMContext) retryAllocENIIP() {
 func (c *IPAMContext) decreaseIPPool() {
 	ipamdActionsInprogress.WithLabelValues("decreaseIPPool").Add(float64(1))
 	defer ipamdActionsInprogress.WithLabelValues("decreaseIPPool").Sub(float64(1))
+	// We want to lock when freeing an ENI to prevent anything from allocation it
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	eni, err := c.dataStore.FreeENI()
 	if err != nil {
 		ipamdErrInc("decreaseIPPoolFreeENIFailed", err)

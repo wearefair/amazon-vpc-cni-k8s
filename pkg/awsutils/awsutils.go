@@ -56,7 +56,7 @@ const (
 	maxENIs   = 128
 	eniTagKey = "k8s-eni-key"
 
-	retryDeleteENIInternal = 5 * time.Second
+	retryDeleteENIInterval = 5 * time.Second
 
 	// UnknownInstanceType indicates that the instance type is not yet supported
 	UnknownInstanceType = "vpc ip resource(eni ip limit): unknown instance type"
@@ -701,10 +701,9 @@ func (cache *EC2InstanceMetadataCache) FreeENI(eniName string) error {
 	log.Debugf("Found eni %s attachment id: %s ", eniName, aws.StringValue(attachID))
 
 	// detach it first
-	v := true
 	detachInput := &ec2.DetachNetworkInterfaceInput{
 		AttachmentId: attachID,
-		Force:        aws.Bool(v),
+		Force:        aws.Bool(true),
 	}
 
 	start := time.Now()
@@ -714,6 +713,17 @@ func (cache *EC2InstanceMetadataCache) FreeENI(eniName string) error {
 		awsAPIErrInc("DetachNetworkInterface", err)
 		log.Errorf("Failed to detach eni %s %v", eniName, err)
 		return errors.Wrap(err, "free eni: failed to detach eni from instance")
+	}
+
+	// Attempting to use EC2 waiters instead
+	log.Debugf("Waiting until ENI detached: %s", eniName)
+	describeInput := &ec2.DescribeNetworkInterfacesInput{
+		NetworkInterfaceIds: []*string{aws.String(eniName)},
+	}
+	err := cache.ec2SVC.WaitUntilNetworkInterfaceAvailable(describeInput)
+	if err != nil {
+		log.Errorf("ENI did not detach in wait time: %s", err.Error())
+		return errors.Wrapf(err, "eni did not detach in time: %s", eniName)
 	}
 
 	// It may take awhile for EC2-VPC to detach ENI from instance
@@ -734,29 +744,40 @@ func (cache *EC2InstanceMetadataCache) FreeENI(eniName string) error {
 func (cache *EC2InstanceMetadataCache) deleteENI(eniName string) error {
 	log.Debugf("Trying to delete eni: %s", eniName)
 
-	retry := 0
-	var err error
-	for {
-		retry++
-		if retry > maxENIDeleteRetries {
-			return errors.New("unable to delete ENI, giving up")
-		}
-
-		deleteInput := &ec2.DeleteNetworkInterfaceInput{
-			NetworkInterfaceId: aws.String(eniName),
-		}
-		start := time.Now()
-		_, err = cache.ec2SVC.DeleteNetworkInterface(deleteInput)
-		awsAPILatency.WithLabelValues("DeleteNetworkInterface", fmt.Sprint(err != nil)).Observe(msSince(start))
-		if err == nil {
-			awsAPIErrInc("DeleteNetworkInterface", err)
-			log.Infof("Successfully deleted eni: %s", eniName)
-			return nil
-		}
-
-		log.Debugf("Not able to delete eni yet (attempt %d/%d): %v ", retry, maxENIDeleteRetries, err)
-		time.Sleep(retryDeleteENIInternal)
+	deleteInput := &ec2.DeleteNetworkInterfaceInput{
+		NetworkInterfaceId: aws.String(eniName),
 	}
+	start := time.Now()
+	_, err := cache.ec2SVC.DeleteNetworkInterface(deleteInput)
+	awsAPILatency.WithLabelValues("DeleteNetworkInterface", fmt.Sprint(err != nil)).Observe(msSince(start))
+	if err != nil {
+		return err
+	}
+	log.Infof("Successfully deleted eni: %s", eniName)
+	return nil
+	//retry := 0
+	//var err error
+	//for {
+	//	retry++
+	//	if retry > maxENIDeleteRetries {
+	//		return errors.New("unable to delete ENI, giving up")
+	//	}
+
+	//	deleteInput := &ec2.DeleteNetworkInterfaceInput{
+	//		NetworkInterfaceId: aws.String(eniName),
+	//	}
+	//	start := time.Now()
+	//	_, err = cache.ec2SVC.DeleteNetworkInterface(deleteInput)
+	//	awsAPILatency.WithLabelValues("DeleteNetworkInterface", fmt.Sprint(err != nil)).Observe(msSince(start))
+	//	if err == nil {
+	//		awsAPIErrInc("DeleteNetworkInterface", err)
+	//		log.Infof("Successfully deleted eni: %s", eniName)
+	//		return nil
+	//	}
+
+	//	log.Debugf("Not able to delete eni yet (attempt %d/%d): %v ", retry, maxENIDeleteRetries, err)
+	//	time.Sleep(retryDeleteENIInterval)
+	//}
 
 }
 
