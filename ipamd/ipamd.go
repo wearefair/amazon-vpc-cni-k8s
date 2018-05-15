@@ -265,7 +265,8 @@ func (c *IPAMContext) retryAllocENIIP() {
 func (c *IPAMContext) decreaseIPPool() {
 	ipamdActionsInprogress.WithLabelValues("decreaseIPPool").Add(float64(1))
 	defer ipamdActionsInprogress.WithLabelValues("decreaseIPPool").Sub(float64(1))
-	// We want to lock when freeing an ENI to prevent anything from allocation it
+	// We want to lock when attempting to free and delete an ENI from the cache to prevent anything from trying to
+	// add more ENIs to the cache once it's been freed (even though it's not actually deleted from AWS yet)
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	eni, err := c.dataStore.FreeENI()
@@ -440,7 +441,7 @@ func (c *IPAMContext) waitENIAttached(eni string) (awsutils.ENIMetadata, error) 
 			log.Errorf("Unable to discover attached ENI from metadata service")
 			// TODO need to add health stats
 			ipamdErrInc("waitENIAttachedMaxRetryExceeded", err)
-			return awsutils.ENIMetadata{}, errors.New("add eni: not able to retrieve eni from metata service")
+			return awsutils.ENIMetadata{}, errors.New("add eni: not able to retrieve eni from hakuna metata service")
 		}
 		log.Debugf("Not able to discover attached eni yet (attempt %d/%d)", retry, maxRetryCheckENI)
 
