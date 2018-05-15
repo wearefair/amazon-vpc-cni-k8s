@@ -690,7 +690,7 @@ func awsUtilsErrInc(fn string, err error) {
 	awsUtilsErr.With(prometheus.Labels{"fn": fn, "error": err.Error()}).Inc()
 }
 
-func exponentialBackoff(retryFunc func() error) err {
+func exponentialBackoff(retryFunc func() error) error {
 	settings := backoff.NewExponentialBackOff()
 	settings.MaxInterval = exponentialBackoffMaxInterval
 	settings.MaxElapsedTime = exponentialBackoffMaxElapsedTime
@@ -711,6 +711,7 @@ func (cache *EC2InstanceMetadataCache) FreeENI(eniName string) error {
 		if err != nil {
 			return err
 		}
+		return nil
 	}
 	if err := exponentialBackoff(describeEniFunc); err != nil {
 		awsUtilsErrInc("FreeENIDescribeENIFailed", err)
@@ -731,6 +732,7 @@ func (cache *EC2InstanceMetadataCache) FreeENI(eniName string) error {
 		if _, err := cache.ec2SVC.DetachNetworkInterface(detachInput); err != nil {
 			return err
 		}
+		return nil
 	}
 	if err := exponentialBackoff(detachENIFunc); err != nil {
 		awsAPIErrInc("DetachNetworkInterface", err)
@@ -744,7 +746,7 @@ func (cache *EC2InstanceMetadataCache) FreeENI(eniName string) error {
 	describeInput := &ec2.DescribeNetworkInterfacesInput{
 		NetworkInterfaceIds: []*string{aws.String(eniName)},
 	}
-	err := cache.ec2SVC.WaitUntilNetworkInterfaceAvailableWithContext(
+	err = cache.ec2SVC.WaitUntilNetworkInterfaceAvailableWithContext(
 		context.Background(),
 		describeInput,
 		request.WithWaiterDelay(request.ConstantWaiterDelay(retryDeleteENIInterval)),
@@ -780,8 +782,10 @@ func (cache *EC2InstanceMetadataCache) deleteENI(eniName string) error {
 		if _, err := cache.ec2SVC.DeleteNetworkInterface(deleteInput); err != nil {
 			return err
 		}
+		return nil
 	}
-	if err := exponentialBackoff(deleteENIFunc); err != nil {
+	err := exponentialBackoff(deleteENIFunc)
+	if err != nil {
 		awsAPIErrInc("DetachNetworkInterface", err)
 		log.Errorf("Failed to detach eni %s %v", eniName, err)
 		return errors.Wrap(err, "free eni: failed to detach eni from instance")

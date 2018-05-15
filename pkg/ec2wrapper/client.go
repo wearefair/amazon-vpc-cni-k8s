@@ -14,6 +14,8 @@
 package ec2wrapper
 
 import (
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	ec2svc "github.com/aws/aws-sdk-go/service/ec2"
 )
@@ -27,6 +29,7 @@ type EC2 interface {
 	AssignPrivateIpAddresses(input *ec2svc.AssignPrivateIpAddressesInput) (*ec2svc.AssignPrivateIpAddressesOutput, error)
 	DescribeNetworkInterfaces(input *ec2svc.DescribeNetworkInterfacesInput) (*ec2svc.DescribeNetworkInterfacesOutput, error)
 	ModifyNetworkInterfaceAttribute(input *ec2svc.ModifyNetworkInterfaceAttributeInput) (*ec2svc.ModifyNetworkInterfaceAttributeOutput, error)
+	WaitUntilNetworkInterfaceAvailableWithContext(ctx aws.Context, input *ec2svc.DescribeNetworkInterfacesInput, opts ...request.WaiterOption) error
 }
 
 func New(sess *session.Session) EC2 {
