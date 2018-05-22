@@ -29,51 +29,6 @@
   revision = "17438ddf497765b2c43bfad94d4c7d9c89b2be8e"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/aws/amazon-vpc-cni-k8s"
-  packages = [
-    "ipamd",
-    "ipamd/datastore",
-    "pkg/awsutils",
-    "pkg/awsutils/mocks",
-    "pkg/cninswrapper/mock_ns",
-    "pkg/ec2metadata",
-    "pkg/ec2metadata/mocks",
-    "pkg/ec2wrapper",
-    "pkg/ec2wrapper/mocks",
-    "pkg/grpcwrapper",
-    "pkg/grpcwrapper/mocks",
-    "pkg/httpwrapper",
-    "pkg/httpwrapper/mocks",
-    "pkg/ioutilwrapper",
-    "pkg/ioutilwrapper/mocks",
-    "pkg/ipwrapper",
-    "pkg/ipwrapper/mocks",
-    "pkg/k8sapi",
-    "pkg/k8sapi/mocks",
-    "pkg/netlinkwrapper",
-    "pkg/netlinkwrapper/mock_netlink",
-    "pkg/netlinkwrapper/mocks",
-    "pkg/networkutils",
-    "pkg/networkutils/mocks",
-    "pkg/nswrapper",
-    "pkg/nswrapper/mocks",
-    "pkg/resourcegroupstaggingapiwrapper",
-    "pkg/resourcegroupstaggingapiwrapper/mocks",
-    "pkg/rpcwrapper",
-    "pkg/rpcwrapper/mocks",
-    "pkg/typeswrapper",
-    "pkg/typeswrapper/mocks",
-    "pkg/utils",
-    "pkg/utils/ttime",
-    "plugins/routed-eni/driver",
-    "plugins/routed-eni/driver/mocks",
-    "rpc",
-    "rpc/mocks"
-  ]
-  revision = "d69852b67a09c8b8cf58eae882dfe7d5387fb6fd"
-
-[[projects]]
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -487,6 +442,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "92796cd35cb5cf91363e221d831878d2edb83fa88e42d18d8d22e00db2d54e75"
+  inputs-digest = "ba52506d27d38bb546d8ef0f87daa04a07761dfc397f50c351e492a13746f7a2"
   solver-name = "gps-cdcl"
   solver-version = 1

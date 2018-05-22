@@ -61,6 +61,7 @@ const (
 
 	exponentialBackoffMaxInterval    = 10 * time.Second
 	exponentialBackoffMaxElapsedTime = 2 * time.Minute
+	exponentialBackoffMaxRetries     = uint64(20)
 	retryDeleteENIInterval           = 5 * time.Second
 
 	// UnknownInstanceType indicates that the instance type is not yet supported
@@ -695,7 +696,7 @@ func exponentialBackoff(retryFunc func() error) error {
 	settings.MaxInterval = exponentialBackoffMaxInterval
 	settings.MaxElapsedTime = exponentialBackoffMaxElapsedTime
 
-	return backoff.Retry(retryFunc, settings)
+	return backoff.Retry(retryFunc, backoff.WithMaxRetries(settings, exponentialBackoffMaxRetries))
 }
 
 // FreeENI detachs ENI interface and delete ENI interface
