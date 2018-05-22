@@ -1,4 +1,4 @@
-// Copyright 2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"). You may
 // not use this file except in compliance with the License. A copy of the
@@ -20,7 +20,9 @@ package mock_ec2wrapper
 import (
 	reflect "reflect"
 
-	"github.com/aws/aws-sdk-go/service/ec2"
+	aws "github.com/aws/aws-sdk-go/aws"
+	request "github.com/aws/aws-sdk-go/aws/request"
+	ec2 "github.com/aws/aws-sdk-go/service/ec2"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -149,4 +151,21 @@ func (m *MockEC2) ModifyNetworkInterfaceAttribute(arg0 *ec2.ModifyNetworkInterfa
 // ModifyNetworkInterfaceAttribute indicates an expected call of ModifyNetworkInterfaceAttribute
 func (mr *MockEC2MockRecorder) ModifyNetworkInterfaceAttribute(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ModifyNetworkInterfaceAttribute", reflect.TypeOf((*MockEC2)(nil).ModifyNetworkInterfaceAttribute), arg0)
+}
+
+// WaitUntilNetworkInterfaceAvailableWithContext mocks base method
+func (m *MockEC2) WaitUntilNetworkInterfaceAvailableWithContext(arg0 aws.Context, arg1 *ec2.DescribeNetworkInterfacesInput, arg2 ...request.WaiterOption) error {
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "WaitUntilNetworkInterfaceAvailableWithContext", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WaitUntilNetworkInterfaceAvailableWithContext indicates an expected call of WaitUntilNetworkInterfaceAvailableWithContext
+func (mr *MockEC2MockRecorder) WaitUntilNetworkInterfaceAvailableWithContext(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitUntilNetworkInterfaceAvailableWithContext", reflect.TypeOf((*MockEC2)(nil).WaitUntilNetworkInterfaceAvailableWithContext), varargs...)
 }
