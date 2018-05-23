@@ -476,21 +476,18 @@ func TestFreeENIRetryMax(t *testing.T) {
 	mockEC2.EXPECT().DetachNetworkInterface(gomock.Any()).Return(nil, nil)
 	mockEC2.EXPECT().WaitUntilNetworkInterfaceAvailableWithContext(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
-	for i := 0; i < int(exponentialBackoffMaxRetries); i++ {
-		mockEC2.EXPECT().DeleteNetworkInterface(gomock.Any()).Return(nil, errors.New("testing retrying delete"))
-	}
+	mockEC2.EXPECT().DeleteNetworkInterface(gomock.Any()).Return(nil, errors.New("testing retrying delete")).AnyTimes()
 
 	ins := &EC2InstanceMetadataCache{ec2SVC: mockEC2}
 	err := ins.FreeENI("test-eni")
 	assert.Error(t, err)
-
 }
 
 func TestFreeENIDescribeErr(t *testing.T) {
 	ctrl, _, mockEC2, _ := setup(t)
 	defer ctrl.Finish()
 
-	mockEC2.EXPECT().DescribeNetworkInterfaces(gomock.Any()).Return(nil, errors.New("Error on DescribeNetworkInterfaces"))
+	mockEC2.EXPECT().DescribeNetworkInterfaces(gomock.Any()).Return(nil, errors.New("Error on DescribeNetworkInterfaces")).AnyTimes()
 
 	ins := &EC2InstanceMetadataCache{ec2SVC: mockEC2}
 	err := ins.FreeENI("test-eni")
