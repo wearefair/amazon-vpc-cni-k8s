@@ -14,21 +14,6 @@
   revision = "de5bf2ad457846296e2031421a34e2568e304e35"
 
 [[projects]]
-  name = "github.com/aws/amazon-ecs-agent"
-  packages = [
-    "agent/utils/ttime",
-    "agent/utils/ttime/mocks"
-  ]
-  revision = "ea58fddf8462034ff2034aa9788b02341d7702e3"
-  version = "v1.15.2"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/aws/amazon-ecs-cni-plugins"
-  packages = ["pkg/logger"]
-  revision = "17438ddf497765b2c43bfad94d4c7d9c89b2be8e"
-
-[[projects]]
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -119,12 +104,6 @@
   version = "v2.4.0"
 
 [[projects]]
-  name = "github.com/ghodss/yaml"
-  packages = ["."]
-  revision = "0ca9ea5df5451ffdf184b4428c902747c2c11cd7"
-  version = "v1.0.0"
-
-[[projects]]
   name = "github.com/go-ini/ini"
   packages = ["."]
   revision = "5b3e00af70a9484542169a976dcab8d03e601a17"
@@ -198,12 +177,6 @@
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
   revision = "0b12d6b5"
-
-[[projects]]
-  name = "github.com/json-iterator/go"
-  packages = ["."]
-  revision = "6240e1e7983a85228f7fd9c3e1b6932d46ec58e2"
-  version = "1.0.3"
 
 [[projects]]
   branch = "master"
@@ -384,44 +357,32 @@
 
 [[projects]]
   branch = "master"
+  name = "k8s.io/api"
+  packages = ["core/v1"]
+  revision = "d216743eed4c3242b85d094d2a589f41a793652d"
+
+[[projects]]
+  branch = "master"
   name = "k8s.io/apimachinery"
   packages = [
-    "pkg/api/equality",
-    "pkg/api/meta",
     "pkg/api/resource",
-    "pkg/apimachinery",
-    "pkg/apimachinery/announced",
-    "pkg/apimachinery/registered",
-    "pkg/apis/meta/internalversion",
     "pkg/apis/meta/v1",
-    "pkg/apis/meta/v1/unstructured",
-    "pkg/apis/meta/v1alpha1",
     "pkg/conversion",
     "pkg/conversion/queryparams",
-    "pkg/conversion/unstructured",
     "pkg/fields",
     "pkg/labels",
     "pkg/runtime",
     "pkg/runtime/schema",
-    "pkg/runtime/serializer",
-    "pkg/runtime/serializer/json",
-    "pkg/runtime/serializer/protobuf",
-    "pkg/runtime/serializer/recognizer",
-    "pkg/runtime/serializer/versioning",
     "pkg/selection",
     "pkg/types",
-    "pkg/util/diff",
     "pkg/util/errors",
-    "pkg/util/framer",
     "pkg/util/intstr",
-    "pkg/util/json",
     "pkg/util/net",
     "pkg/util/runtime",
     "pkg/util/sets",
     "pkg/util/validation",
     "pkg/util/validation/field",
     "pkg/util/wait",
-    "pkg/util/yaml",
     "pkg/watch",
     "third_party/forked/golang/reflect"
   ]
@@ -433,15 +394,9 @@
   packages = ["pkg/common"]
   revision = "89ae48fe8691077463af5b7fb3b6f194632c5946"
 
-[[projects]]
-  name = "k8s.io/kubernetes"
-  packages = ["pkg/api"]
-  revision = "f38e43b221d08850172a9a4ea785a86a3ffa3b3a"
-  version = "v1.8.1"
-
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ba52506d27d38bb546d8ef0f87daa04a07761dfc397f50c351e492a13746f7a2"
+  inputs-digest = "bc049458e3f102d1371008fc59c907573d1220b500de33ec34989f53b64b3dd8"
   solver-name = "gps-cdcl"
   solver-version = 1
