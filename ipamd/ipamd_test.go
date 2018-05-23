@@ -188,7 +188,6 @@ func TestIncreaseIPPool(t *testing.T) {
 	mockNetwork.EXPECT().SetupENINetwork(gomock.Any(), secMAC, secDevice, secSubnet)
 
 	mockContext.increaseIPPool()
-
 }
 
 func TestNodeIPPoolReconcile(t *testing.T) {

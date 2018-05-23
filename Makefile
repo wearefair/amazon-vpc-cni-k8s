@@ -38,14 +38,15 @@ docker: static certs
 docker-push: docker
 	docker push "889883130442.dkr.ecr.us-west-2.amazonaws.com/amazon-k8s-cni"
 
+docker-test-build:
+	docker build -t amazon-vpc-cni-k8s-test:$(COMMIT) .
+
 # unit-test
-unit-test:
-	go test -v -cover -race -timeout 300s ./pkg/awsutils/...
-	go test -v -cover -race -timeout 10s ./plugins/routed-eni/...
-	go test -v -cover -race -timeout 10s ./plugins/routed-eni/driver
-	go test -v -cover -race -timeout 10s ./pkg/k8sapi/...
-	go test -v -cover -race -timeout 10s ./pkg/networkutils/...
-	go test -v -cover -race -timeout 10s ./ipamd/...
+docker-test: 
+	docker run --rm \
+		-v $(PWD):/go/src/github.com/aws/amazon-vpc-cni-k8s \
+		-w /go/src/github.com/aws/amazon-vpc-cni-k8s \
+		-it golang:1.10 bash -c "make -f docker.Makefile unit-test"
 
 #golint
 lint:

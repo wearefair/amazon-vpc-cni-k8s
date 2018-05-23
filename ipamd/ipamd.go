@@ -18,6 +18,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -95,9 +96,10 @@ type IPAMContext struct {
 	// maxENI indicate the maximum number of ENIs can be attached to the instance
 	// It is initialized to 0 and it is set to current number of ENIs attached
 	// when ipamD receives AttachmentLimitExceeded error
-	maxENI               int
+	maxENI int
 	primaryIP            map[string]string
 	lastNodeIPPoolAction time.Time
+	lock sync.Mutex
 }
 
 func prometheusRegister() {
