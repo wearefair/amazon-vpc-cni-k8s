@@ -33,7 +33,7 @@ misc/certs/ca-certificates.crt:
 
 # build docker image
 docker: static certs
-	@docker build -f scripts/dockerfiles/Dockerfile.release -t "889883130442.dkr.ecr.us-west-2.amazonaws.com/amazon-k8s-cni:latest" .
+	@docker build -f scripts/dockerfiles/Dockerfile.release -t "889883130442.dkr.ecr.us-west-2.amazonaws.com/amazon-k8s-cni:$(COMMIT)" .
 	@echo "Built Docker image \"amazon/amazon-k8s-cni:$(COMMIT)\""
 docker-push: docker
 	docker push "889883130442.dkr.ecr.us-west-2.amazonaws.com/amazon-k8s-cni"
