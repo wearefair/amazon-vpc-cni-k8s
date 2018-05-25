@@ -16,6 +16,7 @@ package ipamd
 import (
 	"net"
 	"testing"
+	"time"
 
 	"github.com/aws/amazon-vpc-cni-k8s/ipamd/datastore"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/awsutils"
@@ -188,6 +189,93 @@ func TestIncreaseIPPool(t *testing.T) {
 	mockNetwork.EXPECT().SetupENINetwork(gomock.Any(), secMAC, secDevice, secSubnet)
 
 	mockContext.increaseIPPool()
+}
+
+func TestDecreaseIPPool(t *testing.T) {
+	ctrl, mockAWS, mockK8S, mockNetwork := setup(t)
+	defer ctrl.Finish()
+
+	mockContext := &IPAMContext{
+		awsClient:     mockAWS,
+		k8sClient:     mockK8S,
+		networkClient: mockNetwork,
+		primaryIP:     make(map[string]string),
+	}
+
+	ds := datastore.NewDataStore()
+	ds.AddENI(secENIid, 1, false)
+	// Have to sleep for a minute in order for it to qualify as a deletable ENI because this interface
+	// is not exposed and not particularly testable...
+	time.Sleep(1 * time.Minute)
+	mockContext.dataStore = ds
+
+	mockAWS.EXPECT().FreeENI()
+
+	mockContext.decreaseIPPool()
+}
+
+// Testing the mutex on the context to make sure that when a delete is called, a lock is
+// acquired on the context, so no add condition can cause a race
+func TestDecreaseIPPoolRaceCondition(t *testing.T) {
+	ctrl, mockAWS, mockK8S, mockNetwork := setup(t)
+	defer ctrl.Finish()
+
+	mockContext := &IPAMContext{
+		awsClient:     mockAWS,
+		k8sClient:     mockK8S,
+		networkClient: mockNetwork,
+		primaryIP:     make(map[string]string),
+	}
+
+	ds := datastore.NewDataStore()
+	ds.AddENI(secENIid, 1, false)
+
+	primary := false
+	attachmentID := testAttachmentID
+	testAddr11 := ipaddr11
+	testAddr12 := ipaddr12
+
+	// Ensures that the decrease and increase calls are called in the correct order
+	gomock.InOrder(
+		mockAWS.EXPECT().FreeENI(secENIid),
+		mockAWS.EXPECT().GetENILimit().Return(4, nil),
+		mockAWS.EXPECT().AllocENI().Return(secENIid, nil),
+		mockAWS.EXPECT().AllocAllIPAddress(secENIid),
+		mockAWS.EXPECT().GetAttachedENIs().Return([]awsutils.ENIMetadata{
+			awsutils.ENIMetadata{
+				ENIID:          primaryENIid,
+				MAC:            primaryMAC,
+				DeviceNumber:   primaryDevice,
+				SubnetIPv4CIDR: primarySubnet,
+				LocalIPv4s:     []string{ipaddr01, ipaddr02},
+			},
+			awsutils.ENIMetadata{
+				ENIID:          secENIid,
+				MAC:            secMAC,
+				DeviceNumber:   secDevice,
+				SubnetIPv4CIDR: secSubnet,
+				LocalIPv4s:     []string{ipaddr11, ipaddr12}},
+		}, nil),
+		mockAWS.EXPECT().GetPrimaryENI().Return(primaryENIid),
+		mockAWS.EXPECT().DescribeENI(secENIid).Return(
+			[]*ec2.NetworkInterfacePrivateIpAddress{
+				&ec2.NetworkInterfacePrivateIpAddress{
+					PrivateIpAddress: &testAddr11, Primary: &primary,
+				},
+				&ec2.NetworkInterfacePrivateIpAddress{
+					PrivateIpAddress: &testAddr12, Primary: &primary,
+				},
+			},
+			&attachmentID,
+			nil,
+		),
+		mockAWS.EXPECT().GetPrimaryENI().Return(primaryENIid),
+		mockNetwork.EXPECT().SetupENINetwork(gomock.Any(), secMAC, secDevice, secSubnet),
+	)
+
+	// Call these in separate goroutines in to try and cause a race condition
+	go mockContext.decreaseIPPool()
+	go mockContext.increaseIPPool()
 }
 
 func TestNodeIPPoolReconcile(t *testing.T) {
