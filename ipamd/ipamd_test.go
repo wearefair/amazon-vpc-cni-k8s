@@ -28,6 +28,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
@@ -209,7 +210,7 @@ func TestDecreaseIPPool(t *testing.T) {
 	time.Sleep(1 * time.Minute)
 	mockContext.dataStore = ds
 
-	mockAWS.EXPECT().FreeENI()
+	mockAWS.EXPECT().FreeENI(secENIid)
 
 	mockContext.decreaseIPPool()
 }
@@ -229,53 +230,52 @@ func TestDecreaseIPPoolRaceCondition(t *testing.T) {
 
 	ds := datastore.NewDataStore()
 	ds.AddENI(secENIid, 1, false)
-
-	primary := false
-	attachmentID := testAttachmentID
-	testAddr11 := ipaddr11
-	testAddr12 := ipaddr12
+	// Have to sleep for a minute in order for it to qualify as a deletable ENI because this interface
+	// is not exposed and not particularly testable...
+	time.Sleep(1 * time.Minute)
+	mockContext.dataStore = ds
 
 	// Ensures that the decrease and increase calls are called in the correct order
-	gomock.InOrder(
-		mockAWS.EXPECT().FreeENI(secENIid),
-		mockAWS.EXPECT().GetENILimit().Return(4, nil),
-		mockAWS.EXPECT().AllocENI().Return(secENIid, nil),
-		mockAWS.EXPECT().AllocAllIPAddress(secENIid),
-		mockAWS.EXPECT().GetAttachedENIs().Return([]awsutils.ENIMetadata{
-			awsutils.ENIMetadata{
-				ENIID:          primaryENIid,
-				MAC:            primaryMAC,
-				DeviceNumber:   primaryDevice,
-				SubnetIPv4CIDR: primarySubnet,
-				LocalIPv4s:     []string{ipaddr01, ipaddr02},
+	mockAWS.EXPECT().FreeENI(secENIid)
+	mockAWS.EXPECT().GetENILimit().Return(4, nil)
+	mockAWS.EXPECT().AllocENI().Return(secENIid, nil)
+	mockAWS.EXPECT().AllocAllIPAddress(secENIid)
+	mockAWS.EXPECT().GetAttachedENIs().Return([]awsutils.ENIMetadata{
+		awsutils.ENIMetadata{
+			ENIID:          primaryENIid,
+			MAC:            primaryMAC,
+			DeviceNumber:   primaryDevice,
+			SubnetIPv4CIDR: primarySubnet,
+			LocalIPv4s:     []string{ipaddr01, ipaddr02},
+		},
+		awsutils.ENIMetadata{
+			ENIID:          secENIid,
+			MAC:            secMAC,
+			DeviceNumber:   secDevice,
+			SubnetIPv4CIDR: secSubnet,
+			LocalIPv4s:     []string{ipaddr11, ipaddr12}},
+	}, nil)
+	mockAWS.EXPECT().GetPrimaryENI().Return(primaryENIid)
+	mockAWS.EXPECT().DescribeENI(secENIid).Return(
+		[]*ec2.NetworkInterfacePrivateIpAddress{
+			&ec2.NetworkInterfacePrivateIpAddress{
+				PrivateIpAddress: aws.String(ipaddr11), Primary: aws.Bool(false),
 			},
-			awsutils.ENIMetadata{
-				ENIID:          secENIid,
-				MAC:            secMAC,
-				DeviceNumber:   secDevice,
-				SubnetIPv4CIDR: secSubnet,
-				LocalIPv4s:     []string{ipaddr11, ipaddr12}},
-		}, nil),
-		mockAWS.EXPECT().GetPrimaryENI().Return(primaryENIid),
-		mockAWS.EXPECT().DescribeENI(secENIid).Return(
-			[]*ec2.NetworkInterfacePrivateIpAddress{
-				&ec2.NetworkInterfacePrivateIpAddress{
-					PrivateIpAddress: &testAddr11, Primary: &primary,
-				},
-				&ec2.NetworkInterfacePrivateIpAddress{
-					PrivateIpAddress: &testAddr12, Primary: &primary,
-				},
+			&ec2.NetworkInterfacePrivateIpAddress{
+				PrivateIpAddress: aws.String(ipaddr12), Primary: aws.Bool(false),
 			},
-			&attachmentID,
-			nil,
-		),
-		mockAWS.EXPECT().GetPrimaryENI().Return(primaryENIid),
-		mockNetwork.EXPECT().SetupENINetwork(gomock.Any(), secMAC, secDevice, secSubnet),
+		},
+		aws.String(testAttachmentID),
+		nil,
 	)
+	mockAWS.EXPECT().GetPrimaryENI().Return(primaryENIid)
+	mockNetwork.EXPECT().SetupENINetwork(gomock.Any(), secMAC, secDevice, secSubnet)
 
-	// Call these in separate goroutines in to try and cause a race condition
-	go mockContext.decreaseIPPool()
-	go mockContext.increaseIPPool()
+	mockContext.decreaseIPPool()
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		mockContext.increaseIPPool()
+	}()
 }
 
 func TestNodeIPPoolReconcile(t *testing.T) {
