@@ -15,6 +15,7 @@ package ipamd
 
 import (
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -90,12 +91,12 @@ func TestNodeInit(t *testing.T) {
 	mockAWS.EXPECT().GetENILimit().Return(4, nil)
 	mockAWS.EXPECT().GetENIipLimit().Return(int64(56), nil)
 	mockAWS.EXPECT().GetAttachedENIs().Return([]awsutils.ENIMetadata{eni1, eni2}, nil)
-	mockAWS.EXPECT().GetVPCIPv4CIDR().Return(vpcCIDR)
 	mockAWS.EXPECT().GetLocalIPv4().Return(ipaddr01)
 
-	_, vpcCIDR, _ := net.ParseCIDR(vpcCIDR)
+	// Override the original VPC cidr block because we're cheating it in the source
+	_, cidr, _ := net.ParseCIDR("10.0.0.0/8")
 	primaryIP := net.ParseIP(ipaddr01)
-	mockNetwork.EXPECT().SetupHostNetwork(vpcCIDR, &primaryIP).Return(nil)
+	mockNetwork.EXPECT().SetupHostNetwork(cidr, &primaryIP).Return(nil)
 
 	//primaryENIid
 	mockAWS.EXPECT().GetPrimaryENI().Return(primaryENIid)
@@ -215,7 +216,7 @@ func TestDecreaseIPPool(t *testing.T) {
 	mockContext.decreaseIPPool()
 }
 
-// Testing the mutex on the context to make sure that when a delete is called, a lock is
+// Tests the mutex on the context to make sure that when a delete is called, a lock is
 // acquired on the context, so no add condition can cause a race
 func TestDecreaseIPPoolRaceCondition(t *testing.T) {
 	ctrl, mockAWS, mockK8S, mockNetwork := setup(t)
@@ -236,8 +237,8 @@ func TestDecreaseIPPoolRaceCondition(t *testing.T) {
 	mockContext.dataStore = ds
 
 	// Ensures that the decrease and increase calls are called in the correct order
-	mockAWS.EXPECT().FreeENI(secENIid)
-	mockAWS.EXPECT().GetENILimit().Return(4, nil)
+	first := mockAWS.EXPECT().FreeENI(secENIid)
+	mockAWS.EXPECT().GetENILimit().Return(4, nil).After(first)
 	mockAWS.EXPECT().AllocENI().Return(secENIid, nil)
 	mockAWS.EXPECT().AllocAllIPAddress(secENIid)
 	mockAWS.EXPECT().GetAttachedENIs().Return([]awsutils.ENIMetadata{
@@ -271,11 +272,20 @@ func TestDecreaseIPPoolRaceCondition(t *testing.T) {
 	mockAWS.EXPECT().GetPrimaryENI().Return(primaryENIid)
 	mockNetwork.EXPECT().SetupENINetwork(gomock.Any(), secMAC, secDevice, secSubnet)
 
-	mockContext.decreaseIPPool()
+	// Call decreaseIPPool and increaseIPPool in goroutines in quick succession and
+	// ensure that the decreaseIPPool calls are done first
+	var wg sync.WaitGroup
+	wg.Add(2)
 	go func() {
-		time.Sleep(50 * time.Millisecond)
-		mockContext.increaseIPPool()
+		mockContext.decreaseIPPool()
+		wg.Done()
 	}()
+	go func() {
+		time.Sleep(5 * time.Millisecond)
+		mockContext.increaseIPPool()
+		wg.Done()
+	}()
+	wg.Wait()
 }
 
 func TestNodeIPPoolReconcile(t *testing.T) {
