@@ -158,7 +158,10 @@ func (c *IPAMContext) nodeInit() error {
 		return errors.New("ipamd init: failed to retrieve attached ENIs info")
 	}
 
-	// _, vpcCIDR, err := net.ParseCIDR(c.awsClient.GetVPCIPv4CIDR())
+	// Gross hack to allow for packets to be routed to any cluster within our
+	// entire VPC CIDR range. Previously this rule only allowed routing within the
+	// VPC CIDR that the CNI pods are launched in, which breaks our cross-cluster
+	// communications. Ideally, this can be split out to be configurable
 	_, vpcCIDR, err := net.ParseCIDR("10.0.0.0/8")
 	if err != nil {
 		log.Error("Failed to parse VPC IPv4 CIDR", err.Error())
