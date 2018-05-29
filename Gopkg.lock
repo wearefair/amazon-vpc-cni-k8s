@@ -151,8 +151,8 @@
 [[projects]]
   name = "github.com/golang/mock"
   packages = ["gomock"]
-  revision = "13f360950a79f5864a972c786a10a50e44b69541"
-  version = "v1.0.0"
+  revision = "c34cdb4725f4c3844d095133c6e40e448b86589b"
+  version = "v1.1.1"
 
 [[projects]]
   branch = "master"
@@ -397,6 +397,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bc049458e3f102d1371008fc59c907573d1220b500de33ec34989f53b64b3dd8"
+  inputs-digest = "fef2db1aeea06b9782a05c69c4fb909f89977a0944a16311474332c6d447a1cd"
   solver-name = "gps-cdcl"
   solver-version = 1

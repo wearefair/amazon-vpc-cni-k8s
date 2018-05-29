@@ -357,6 +357,8 @@ func (c *IPAMContext) increaseIPPool() {
 func (c *IPAMContext) setupENI(eni string, eniMetadata awsutils.ENIMetadata) error {
 	// Have discovered the attached ENI from metadata service
 	// add eni's IP to IP pool
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	err := c.dataStore.AddENI(eni, int(eniMetadata.DeviceNumber), (eni == c.awsClient.GetPrimaryENI()))
 	if err != nil && err.Error() != datastore.DuplicatedENIError {
 		return errors.Wrapf(err, "failed to add eni %s to data store", eni)

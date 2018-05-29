@@ -59,13 +59,17 @@ const (
 	maxENIs   = 128
 	eniTagKey = "k8s-eni-key"
 
-	exponentialBackoffMaxInterval    = 10 * time.Second
-	exponentialBackoffMaxElapsedTime = 2 * time.Minute
-	exponentialBackoffMaxRetries     = uint64(20)
+	exponentialBackoffMaxElapsedTime = 3 * time.Minute
 	retryDeleteENIInterval           = 5 * time.Second
 
 	// UnknownInstanceType indicates that the instance type is not yet supported
 	UnknownInstanceType = "vpc ip resource(eni ip limit): unknown instance type"
+
+	// Error code for attachment ID, which isn't included in the EC2 aws-sdk-go
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html#api-error-codes-table-server
+	errAttachmentIDNotFound          = "InvalidAttachmentID.NotFound"
+	errAttachmentLimitExceeded       = "AttachmentLimitExceeded"
+	errPrivateIpAddressLimitExceeded = "PrivateIpAddressLimitExceeded"
 )
 
 var (
@@ -668,7 +672,7 @@ func (cache *EC2InstanceMetadataCache) tagENI(eniID string) {
 //containsAttachmentLimitExceededError returns whether exceeds instance's ENI limit
 func containsAttachmentLimitExceededError(err error) bool {
 	if aerr, ok := err.(awserr.Error); ok {
-		return aerr.Code() == "AttachmentLimitExceeded"
+		return aerr.Code() == errAttachmentLimitExceeded
 	}
 	return false
 }
@@ -676,7 +680,14 @@ func containsAttachmentLimitExceededError(err error) bool {
 // containsPrivateIPAddressLimitExceededError returns whether exceeds eni's IP address limit
 func containsPrivateIPAddressLimitExceededError(err error) bool {
 	if aerr, ok := err.(awserr.Error); ok {
-		return aerr.Code() == "PrivateIpAddressLimitExceeded"
+		return aerr.Code() == errPrivateIpAddressLimitExceeded
+	}
+	return false
+}
+
+func containsAttachmentIDNotFoundError(err error) bool {
+	if aerr, ok := err.(awserr.Error); ok {
+		return aerr.Code() == errAttachmentIDNotFound
 	}
 	return false
 }
@@ -693,10 +704,9 @@ func awsUtilsErrInc(fn string, err error) {
 
 func exponentialBackoff(retryFunc func() error) error {
 	settings := backoff.NewExponentialBackOff()
-	settings.MaxInterval = exponentialBackoffMaxInterval
 	settings.MaxElapsedTime = exponentialBackoffMaxElapsedTime
 
-	return backoff.Retry(retryFunc, backoff.WithMaxRetries(settings, exponentialBackoffMaxRetries))
+	return backoff.Retry(retryFunc, settings)
 }
 
 // FreeENI detachs ENI interface and delete ENI interface
@@ -710,6 +720,10 @@ func (cache *EC2InstanceMetadataCache) FreeENI(eniName string) error {
 	describeEniFunc := func() error {
 		_, attachID, err = cache.DescribeENI(eniName)
 		if err != nil {
+			// If the ENI doesn't exist, do not attempt to backoff, just return permanent error
+			if containsAttachmentIDNotFoundError(err) {
+				return backoff.Permanent(err)
+			}
 			return err
 		}
 		return nil
@@ -731,6 +745,10 @@ func (cache *EC2InstanceMetadataCache) FreeENI(eniName string) error {
 	start := time.Now()
 	detachENIFunc := func() error {
 		if _, err := cache.ec2SVC.DetachNetworkInterface(detachInput); err != nil {
+			// If the eni is not found, then return no error, because we do not need to detach
+			if containsAttachmentIDNotFoundError(err) {
+				return nil
+			}
 			return err
 		}
 		return nil
@@ -763,6 +781,10 @@ func (cache *EC2InstanceMetadataCache) FreeENI(eniName string) error {
 	// Example: https://github.com/aws/aws-sdk-go/blob/master/service/ec2/waiters.go#L874
 	err = cache.deleteENI(eniName)
 	if err != nil {
+		// If the eni is not found, then return no error, because we do not need to delete
+		if containsAttachmentIDNotFoundError(err) {
+			return nil
+		}
 		awsUtilsErrInc("FreeENIDeleteErr", err)
 		return errors.Wrapf(err, "fail to free eni: %s", eniName)
 	}
@@ -787,9 +809,9 @@ func (cache *EC2InstanceMetadataCache) deleteENI(eniName string) error {
 	}
 	err := exponentialBackoff(deleteENIFunc)
 	if err != nil {
-		awsAPIErrInc("DetachNetworkInterface", err)
-		log.Errorf("Failed to detach eni %s %v", eniName, err)
-		return errors.Wrap(err, "free eni: failed to detach eni from instance")
+		awsAPIErrInc("DeleteNetworkInterface", err)
+		log.Errorf("Failed to delete eni %s %v", eniName, err)
+		return errors.Wrap(err, "free eni: failed to delete eni from instance")
 	}
 	awsAPILatency.WithLabelValues("DeleteNetworkInterface", fmt.Sprint(err != nil)).Observe(msSince(start))
 	log.Infof("Successfully deleted eni: %s", eniName)

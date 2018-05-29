@@ -14,6 +14,7 @@
 package ipamd
 
 import (
+	"fmt"
 	"net"
 	"sync"
 	"testing"
@@ -237,7 +238,10 @@ func TestDecreaseIPPoolRaceCondition(t *testing.T) {
 	mockContext.dataStore = ds
 
 	// Ensures that the decrease and increase calls are called in the correct order
-	first := mockAWS.EXPECT().FreeENI(secENIid)
+	// This call is called by decreaseIPPool
+	first := mockAWS.EXPECT().FreeENI(secENIid).DoAndReturn(wait)
+
+	// These calls below are all called as a result of increaseIPPool
 	mockAWS.EXPECT().GetENILimit().Return(4, nil).After(first)
 	mockAWS.EXPECT().AllocENI().Return(secENIid, nil)
 	mockAWS.EXPECT().AllocAllIPAddress(secENIid)
@@ -281,11 +285,15 @@ func TestDecreaseIPPoolRaceCondition(t *testing.T) {
 		wg.Done()
 	}()
 	go func() {
-		time.Sleep(5 * time.Millisecond)
 		mockContext.increaseIPPool()
 		wg.Done()
 	}()
 	wg.Wait()
+}
+
+func wait() {
+	fmt.Println("Sleeping...")
+	time.Sleep(10 * time.Millisecond)
 }
 
 func TestNodeIPPoolReconcile(t *testing.T) {
