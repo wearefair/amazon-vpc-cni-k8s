@@ -69,6 +69,7 @@ const (
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html#api-error-codes-table-server
 	errAttachmentIDNotFound          = "InvalidAttachmentID.NotFound"
 	errAttachmentLimitExceeded       = "AttachmentLimitExceeded"
+	errNetworkInterfaceIDNotFound    = "InvalidNetworkInterfaceID.NotFound"
 	errPrivateIpAddressLimitExceeded = "PrivateIpAddressLimitExceeded"
 )
 
@@ -692,6 +693,13 @@ func containsAttachmentIDNotFoundError(err error) bool {
 	return false
 }
 
+func containsNetworkInterfaceIDNotFound(err error) bool {
+	if aerr, ok := err.(awserr.Error); ok {
+		return aerr.Code() == errNetworkInterfaceIDNotFound
+	}
+	return false
+}
+
 func awsAPIErrInc(api string, err error) {
 	if aerr, ok := err.(awserr.Error); ok {
 		awsAPIErr.With(prometheus.Labels{"api": api, "error": aerr.Code()}).Inc()
@@ -721,7 +729,7 @@ func (cache *EC2InstanceMetadataCache) FreeENI(eniName string) error {
 		_, attachID, err = cache.DescribeENI(eniName)
 		if err != nil {
 			// If the ENI doesn't exist, do not attempt to backoff, just return permanent error
-			if containsAttachmentIDNotFoundError(err) {
+			if containsNetworkInterfaceIDNotFound(err) {
 				return backoff.Permanent(err)
 			}
 			return err
@@ -742,9 +750,11 @@ func (cache *EC2InstanceMetadataCache) FreeENI(eniName string) error {
 		Force:        aws.Bool(true),
 	}
 
-	start := time.Now()
 	detachENIFunc := func() error {
-		if _, err := cache.ec2SVC.DetachNetworkInterface(detachInput); err != nil {
+		start := time.Now()
+		_, err := cache.ec2SVC.DetachNetworkInterface(detachInput)
+		awsAPILatency.WithLabelValues("DetachNetworkInterface", fmt.Sprint(err != nil)).Observe(msSince(start))
+		if err != nil {
 			// If the eni is not found, then return no error, because we do not need to detach
 			if containsAttachmentIDNotFoundError(err) {
 				return nil
@@ -758,7 +768,6 @@ func (cache *EC2InstanceMetadataCache) FreeENI(eniName string) error {
 		log.Errorf("Failed to detach eni %s %v", eniName, err)
 		return errors.Wrap(err, "free eni: failed to detach eni from instance")
 	}
-	awsAPILatency.WithLabelValues("DetachNetworkInterface", fmt.Sprint(err != nil)).Observe(msSince(start))
 
 	// Use EC2 waiter to wait for ENI to become available
 	log.Debugf("Waiting until ENI detached: %s", eniName)
@@ -777,14 +786,8 @@ func (cache *EC2InstanceMetadataCache) FreeENI(eniName string) error {
 
 	// It may take awhile for EC2-VPC to detach ENI from instance
 	// retry maxENIDeleteRetries times with sleep 5 sec between to delete the interface
-	// TODO check if can use inbuild waiter in the aws-sdk-go,
-	// Example: https://github.com/aws/aws-sdk-go/blob/master/service/ec2/waiters.go#L874
 	err = cache.deleteENI(eniName)
 	if err != nil {
-		// If the eni is not found, then return no error, because we do not need to delete
-		if containsAttachmentIDNotFoundError(err) {
-			return nil
-		}
 		awsUtilsErrInc("FreeENIDeleteErr", err)
 		return errors.Wrapf(err, "fail to free eni: %s", eniName)
 	}
@@ -797,12 +800,18 @@ func (cache *EC2InstanceMetadataCache) FreeENI(eniName string) error {
 func (cache *EC2InstanceMetadataCache) deleteENI(eniName string) error {
 	log.Debugf("Trying to delete eni: %s", eniName)
 
-	start := time.Now()
 	deleteInput := &ec2.DeleteNetworkInterfaceInput{
 		NetworkInterfaceId: aws.String(eniName),
 	}
 	deleteENIFunc := func() error {
-		if _, err := cache.ec2SVC.DeleteNetworkInterface(deleteInput); err != nil {
+		start := time.Now()
+		_, err := cache.ec2SVC.DeleteNetworkInterface(deleteInput)
+		awsAPILatency.WithLabelValues("DeleteNetworkInterface", fmt.Sprint(err != nil)).Observe(msSince(start))
+		if err != nil {
+			// If the eni is not found, then return no error, because we do not need to delete
+			if containsAttachmentIDNotFoundError(err) {
+				return nil
+			}
 			return err
 		}
 		return nil
@@ -813,7 +822,6 @@ func (cache *EC2InstanceMetadataCache) deleteENI(eniName string) error {
 		log.Errorf("Failed to delete eni %s %v", eniName, err)
 		return errors.Wrap(err, "free eni: failed to delete eni from instance")
 	}
-	awsAPILatency.WithLabelValues("DeleteNetworkInterface", fmt.Sprint(err != nil)).Observe(msSince(start))
 	log.Infof("Successfully deleted eni: %s", eniName)
 	return nil
 }
