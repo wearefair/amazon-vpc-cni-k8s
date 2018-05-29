@@ -809,7 +809,7 @@ func (cache *EC2InstanceMetadataCache) deleteENI(eniName string) error {
 		awsAPILatency.WithLabelValues("DeleteNetworkInterface", fmt.Sprint(err != nil)).Observe(msSince(start))
 		if err != nil {
 			// If the eni is not found, then return no error, because we do not need to delete
-			if containsAttachmentIDNotFoundError(err) {
+			if containsNetworkInterfaceIDNotFound(err) {
 				return nil
 			}
 			return err
