@@ -38,9 +38,6 @@ docker: static certs
 docker-push: docker
 	docker push "889883130442.dkr.ecr.us-west-2.amazonaws.com/amazon-k8s-cni"
 
-docker-test-build:
-	docker build -t amazon-vpc-cni-k8s-test:$(COMMIT) .
-
 # unit-test
 docker-test: 
 	docker run --rm \
