@@ -65,7 +65,7 @@ const (
 	// UnknownInstanceType indicates that the instance type is not yet supported
 	UnknownInstanceType = "vpc ip resource(eni ip limit): unknown instance type"
 
-	// Error code for attachment ID, which isn't included in the EC2 aws-sdk-go
+	// Error codes for EC2, which aren't included in the EC2 aws-sdk-go
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html#api-error-codes-table-server
 	errAttachmentIDNotFound          = "InvalidAttachmentID.NotFound"
 	errAttachmentLimitExceeded       = "AttachmentLimitExceeded"
