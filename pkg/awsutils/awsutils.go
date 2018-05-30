@@ -59,7 +59,9 @@ const (
 	maxENIs   = 128
 	eniTagKey = "k8s-eni-key"
 
-	exponentialBackoffMaxElapsedTime = 3 * time.Minute
+	// Setting a fairly generous backoff time so that errors can hopefully resolve themselves without manual
+	// intervention. Past 10 minutes, we assume that there's disastrous network failures
+	exponentialBackoffMaxElapsedTime = 10 * time.Minute
 	retryDeleteENIInterval           = 5 * time.Second
 
 	// UnknownInstanceType indicates that the instance type is not yet supported
@@ -680,28 +682,28 @@ func containsAttachmentLimitExceededError(err error) bool {
 
 // containsPrivateIPAddressLimitExceededError returns whether exceeds eni's IP address limit
 func containsPrivateIPAddressLimitExceededError(err error) bool {
-	if aerr, ok := err.(awserr.Error); ok {
+	if aerr, ok := errors.Cause(err).(awserr.Error); ok {
 		return aerr.Code() == errPrivateIpAddressLimitExceeded
 	}
 	return false
 }
 
 func containsAttachmentIDNotFoundError(err error) bool {
-	if aerr, ok := err.(awserr.Error); ok {
+	if aerr, ok := errors.Cause(err).(awserr.Error); ok {
 		return aerr.Code() == errAttachmentIDNotFound
 	}
 	return false
 }
 
 func containsNetworkInterfaceIDNotFound(err error) bool {
-	if aerr, ok := err.(awserr.Error); ok {
+	if aerr, ok := errors.Cause(err).(awserr.Error); ok {
 		return aerr.Code() == errNetworkInterfaceIDNotFound
 	}
 	return false
 }
 
 func awsAPIErrInc(api string, err error) {
-	if aerr, ok := err.(awserr.Error); ok {
+	if aerr, ok := errors.Cause(err).(awserr.Error); ok {
 		awsAPIErr.With(prometheus.Labels{"api": api, "error": aerr.Code()}).Inc()
 	}
 }
@@ -712,9 +714,14 @@ func awsUtilsErrInc(fn string, err error) {
 
 func exponentialBackoff(retryFunc func() error) error {
 	settings := backoff.NewExponentialBackOff()
-	settings.MaxElapsedTime = exponentialBackoffMaxElapsedTime
+	settings.MaxElapsedTime = getExponentialBackoffMaxElapsedTime()
 
 	return backoff.Retry(retryFunc, settings)
+}
+
+// Hack to allow overriding the max elapsed time for an exponential backoff
+var getExponentialBackoffMaxElapsedTime = func() time.Duration {
+	return exponentialBackoffMaxElapsedTime
 }
 
 // FreeENI detachs ENI interface and delete ENI interface

@@ -16,6 +16,7 @@ package awsutils
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/golang/mock/gomock"
@@ -54,6 +55,9 @@ func setup(t *testing.T) (*gomock.Controller,
 	*mock_ec2metadata.MockEC2Metadata,
 	*mock_ec2wrapper.MockEC2,
 	*mock_resourcegroupstaggingapiwrapper.MockResourceGroupsTaggingAPI) {
+	getExponentialBackoffMaxElapsedTime = func() time.Duration {
+		return 10 * time.Second
+	}
 	ctrl := gomock.NewController(t)
 	return ctrl,
 		mock_ec2metadata.NewMockEC2Metadata(ctrl),
