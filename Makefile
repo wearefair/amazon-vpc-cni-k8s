@@ -13,11 +13,16 @@
 #
 
 # build binary
+
+GOOS ?= linux
+GOARCH ?= amd64
+COMMIT := $(shell git rev-parse --short HEAD)
+
 static:
-	go build -o aws-k8s-agent main.go
-	go build -o aws-cni plugins/routed-eni/cni.go
-	go build verify-aws.go
-	go build verify-network.go
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -o aws-k8s-agent main.go
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -o aws-cni plugins/routed-eni/cni.go
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build verify-aws.go
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build verify-network.go
 
 # need to bundle certificates
 certs: misc/certs/ca-certificates.crt
@@ -27,18 +32,18 @@ misc/certs/ca-certificates.crt:
 
 
 # build docker image
-docker: certs
-	@docker build -f scripts/dockerfiles/Dockerfile.release -t "amazon/amazon-k8s-cni:latest" .
-	@echo "Built Docker image \"amazon/amazon-k8s-cni:latest\""
+docker: static certs
+	@docker build -f scripts/dockerfiles/Dockerfile.release -t "889883130442.dkr.ecr.us-west-2.amazonaws.com/amazon-k8s-cni:$(COMMIT)" .
+	@echo "Built Docker image \"amazon/amazon-k8s-cni:$(COMMIT)\""
+docker-push: docker
+	docker push "889883130442.dkr.ecr.us-west-2.amazonaws.com/amazon-k8s-cni"
 
 # unit-test
-unit-test:
-	go test -v -cover -race -timeout 150s ./pkg/awsutils/...
-	go test -v -cover -race -timeout 10s ./plugins/routed-eni/...
-	go test -v -cover -race -timeout 10s ./plugins/routed-eni/driver
-	go test -v -cover -race -timeout 10s ./pkg/k8sapi/...
-	go test -v -cover -race -timeout 10s ./pkg/networkutils/...
-	go test -v -cover -race -timeout 10s ./ipamd/...
+docker-test: 
+	docker run --rm \
+		-v $(PWD):/go/src/github.com/aws/amazon-vpc-cni-k8s \
+		-w /go/src/github.com/aws/amazon-vpc-cni-k8s \
+		-it golang:1.10 bash -c "make -f docker.Makefile unit-test"
 
 #golint
 lint:

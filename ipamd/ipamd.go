@@ -18,6 +18,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -98,6 +99,7 @@ type IPAMContext struct {
 	maxENI               int
 	primaryIP            map[string]string
 	lastNodeIPPoolAction time.Time
+	lock                 sync.Mutex
 }
 
 func prometheusRegister() {
@@ -156,7 +158,11 @@ func (c *IPAMContext) nodeInit() error {
 		return errors.New("ipamd init: failed to retrieve attached ENIs info")
 	}
 
-	_, vpcCIDR, err := net.ParseCIDR(c.awsClient.GetVPCIPv4CIDR())
+	// Gross hack to allow for packets to be routed to any cluster within our
+	// entire VPC CIDR range. Previously this rule only allowed routing within the
+	// VPC CIDR that the CNI pods are launched in, which breaks our cross-cluster
+	// communications. Ideally, this can be split out to be configurable
+	_, vpcCIDR, err := net.ParseCIDR("10.0.0.0/8")
 	if err != nil {
 		log.Error("Failed to parse VPC IPv4 CIDR", err.Error())
 		return errors.Wrap(err, "ipamd init: failed to retrieve VPC CIDR")
@@ -264,6 +270,10 @@ func (c *IPAMContext) retryAllocENIIP() {
 func (c *IPAMContext) decreaseIPPool() {
 	ipamdActionsInprogress.WithLabelValues("decreaseIPPool").Add(float64(1))
 	defer ipamdActionsInprogress.WithLabelValues("decreaseIPPool").Sub(float64(1))
+	// We want to lock when attempting to free and delete an ENI from the cache to prevent anything from trying to
+	// add more ENIs to the cache once it's been freed (even though it's not actually deleted from AWS yet)
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	eni, err := c.dataStore.FreeENI()
 	if err != nil {
 		ipamdErrInc("decreaseIPPoolFreeENIFailed", err)
@@ -347,6 +357,8 @@ func (c *IPAMContext) increaseIPPool() {
 func (c *IPAMContext) setupENI(eni string, eniMetadata awsutils.ENIMetadata) error {
 	// Have discovered the attached ENI from metadata service
 	// add eni's IP to IP pool
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	err := c.dataStore.AddENI(eni, int(eniMetadata.DeviceNumber), (eni == c.awsClient.GetPrimaryENI()))
 	if err != nil && err.Error() != datastore.DuplicatedENIError {
 		return errors.Wrapf(err, "failed to add eni %s to data store", eni)
@@ -436,7 +448,7 @@ func (c *IPAMContext) waitENIAttached(eni string) (awsutils.ENIMetadata, error) 
 			log.Errorf("Unable to discover attached ENI from metadata service")
 			// TODO need to add health stats
 			ipamdErrInc("waitENIAttachedMaxRetryExceeded", err)
-			return awsutils.ENIMetadata{}, errors.New("add eni: not able to retrieve eni from metata service")
+			return awsutils.ENIMetadata{}, errors.New("add eni: not able to retrieve eni from hakuna metata service")
 		}
 		log.Debugf("Not able to discover attached eni yet (attempt %d/%d)", retry, maxRetryCheckENI)
 
