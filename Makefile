@@ -16,7 +16,7 @@
 
 GOOS ?= linux
 GOARCH ?= amd64
-COMMIT := $(shell git rev-parse --short HEAD)
+COMMIT := $(shell git rev-parse HEAD)
 
 static:
 	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -o aws-k8s-agent main.go
@@ -33,7 +33,7 @@ misc/certs/ca-certificates.crt:
 
 # build docker image
 docker: static certs
-	@docker build -f scripts/dockerfiles/Dockerfile.release -t "889883130442.dkr.ecr.us-west-2.amazonaws.com/amazon-k8s-cni:$(COMMIT)" .
+	@docker build -f scripts/dockerfiles/Dockerfile.release -t "889883130442.dkr.ecr.us-west-2.amazonaws.com/amazon-k8s-cni:sha-$(COMMIT)" .
 	@echo "Built Docker image \"amazon/amazon-k8s-cni:$(COMMIT)\""
 docker-push: docker
 	docker push "889883130442.dkr.ecr.us-west-2.amazonaws.com/amazon-k8s-cni"
